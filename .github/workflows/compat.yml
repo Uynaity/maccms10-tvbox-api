@@ -1,0 +1,30 @@
+name: PHP compatibility
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.1', '8.5']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: simplexml
+          coverage: none
+      - name: Check syntax
+        run: |
+          php -l Tvbox.php
+          php -l tests/bootstrap.php
+          php -l tests/request.php
+          php -l tests/compat.php
+      - name: Run compatibility checks
+        run: php tests/compat.php
