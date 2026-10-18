@@ -11,6 +11,20 @@ class Tvbox extends Base
     {
         parent::__construct();
         $this->_param = input('','','trim,urldecode');
+
+        // FongMi sends filters as JSON in f; TVBox also sends flat parameters.
+        // Explicit flat parameters take precedence, including an empty value.
+        if (isset($this->_param['f']) && is_string($this->_param['f'])) {
+            $filters = json_decode($this->_param['f'], true);
+            if (is_array($filters)) {
+                foreach (['st', 'year', 'area', 'h', 'isend', 'order_by'] as $key) {
+                    if (!array_key_exists($key, $this->_param)
+                        && isset($filters[$key]) && is_scalar($filters[$key])) {
+                        $this->_param[$key] = trim((string)$filters[$key]);
+                    }
+                }
+            }
+        }
     }
 
     public function index()
@@ -33,7 +47,7 @@ class Tvbox extends Base
         }
 
         $cache_time = intval($GLOBALS['config']['api']['vod']['cachetime']);
-        $cach_name = $GLOBALS['config']['app']['cache_flag']. '_'.'api_vod_'.md5(http_build_query($this->_param));
+        $cach_name = $GLOBALS['config']['app']['cache_flag']. '_'.'api_tvbox_compat_v1_'.md5(http_build_query($this->_param));
         $html = Cache::get($cach_name);
         if(empty($html) || $cache_time==0) {
             $where = [];
@@ -147,7 +161,8 @@ class Tvbox extends Base
                 $order = $this->_param['order_by'] . ' desc';
             }
 
-            $field = 'vod_id,vod_name,type_id,"" as type_name,vod_en,vod_time,vod_remarks,vod_play_from,vod_time';
+            // A cover lets FongMi display results without its category-filtered detail fallback.
+            $field = 'vod_id,vod_name,type_id,"" as type_name,vod_en,vod_time,vod_remarks,vod_play_from,vod_pic,vod_year';
 
             if ($this->_param['ac'] == 'videolist' || $this->_param['ac'] == 'detail') {
                 $field = '*';
@@ -223,7 +238,8 @@ class Tvbox extends Base
     {
         $type_list = model('Type')->getCache('type_list');
         //排序
-        usort($type_list, function ($a, $b){
+        // The cache is keyed by type_id; retain those keys for the lookups below.
+        uasort($type_list, function ($a, $b){
             if($a['type_sort'] == $b['type_sort']){
                 return 0;
             }
